@@ -1,0 +1,742 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Toko Barakah Mobile App</title>
+    <!-- Load Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Load Lucide Icons for aesthetic icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        /* Menggunakan font yang mudah dibaca, seperti Inter */
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f7fdee; /* Latar belakang sangat muda, nuansa Islami/segar */
+        }
+        /* Style untuk simulasi layar utama mobile */
+        #app-container {
+            max-width: 420px; /* Ukuran khas layar HP */
+            height: 100vh;
+            margin: 0 auto;
+            box-shadow: 0 0 15px rgba(0, 0, 0, 0.1);
+            position: relative;
+            background-color: white;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        /* Custom scrollbar untuk tampilan mobile */
+        .scrollable-content::-webkit-scrollbar {
+            width: 4px;
+        }
+        .scrollable-content::-webkit-scrollbar-thumb {
+            background-color: #34d399; /* Emerald 400 */
+            border-radius: 2px;
+        }
+        .scrollable-content::-webkit-scrollbar-track {
+            background-color: #f0fdf4; /* Emerald 50 */
+        }
+
+        /* Overlay untuk Zoom/Modal */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.75);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 50;
+        }
+    </style>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'primary-green': '#059669', // Emerald 600
+                        'secondary-green': '#34d399', // Emerald 400
+                        'light-bg': '#f0fdf4', // Emerald 50
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="p-0 m-0">
+
+<div id="app-container">
+    <!-- Header/App Bar -->
+    <header class="p-4 bg-primary-green text-white shadow-md flex justify-between items-center z-10">
+        <h1 class="text-xl font-bold">Toko Barakah</h1>
+        <i data-lucide="mosque" class="w-6 h-6 text-white"></i>
+    </header>
+
+    <!-- Main Content Area (Scrollable) -->
+    <div id="content" class="flex-grow scrollable-content p-4 pb-20 overflow-y-auto bg-light-bg">
+        <!-- Content will be rendered here by JavaScript -->
+    </div>
+
+    <!-- Bottom Navigation Bar (Fixed) -->
+    <nav class="fixed bottom-0 w-full max-w-[420px] bg-white border-t border-gray-200 shadow-xl z-20">
+        <div class="flex justify-around">
+            <button onclick="changeView('Home')" class="nav-item p-3 flex flex-col items-center text-primary-green transition duration-200 w-1/4">
+                <i data-lucide="home" class="w-6 h-6"></i>
+                <span class="text-xs mt-1 font-semibold">Home</span>
+            </button>
+            <button onclick="changeView('DatangLangsung')" class="nav-item p-3 flex flex-col items-center text-gray-500 transition duration-200 w-1/4">
+                <i data-lucide="qr-code" class="w-6 h-6"></i>
+                <span class="text-xs mt-1">Datang Langsung</span>
+            </button>
+            <button onclick="changeView('PembelianOnline')" class="nav-item p-3 flex flex-col items-center text-gray-500 transition duration-200 w-1/4 relative">
+                <i data-lucide="shopping-bag" class="w-6 h-6"></i>
+                <span id="cart-count" class="absolute top-1 right-2 bg-red-500 text-white text-xs font-bold px-2 py-0 rounded-full hidden">0</span>
+                <span class="text-xs mt-1">Online</span>
+            </button>
+            <button onclick="changeView('AdminPanel')" class="nav-item p-3 flex flex-col items-center text-gray-500 transition duration-200 w-1/4">
+                <i data-lucide="user-cog" class="w-6 h-6"></i>
+                <span class="text-xs mt-1">Admin</span>
+            </button>
+        </div>
+    </nav>
+</div>
+
+<!-- Modal Overlay for Zoom/Messages -->
+<div id="modal-container" class="hidden modal-overlay">
+    <!-- Modal content will be injected here -->
+</div>
+
+<script>
+    // --- STATE MANAGEMENT ---
+    let currentView = 'Home';
+    let cart = {}; // { productId: quantity }
+    
+    // NEW: Admin state for simulated access control
+    let isAdminLoggedIn = false;
+    const ADMIN_KEY = 'toko123'; // Kunci Akses Admin
+    
+    // Data Produk (fixed data)
+    const products = [
+        { id: 'p1', name: 'Kurma Tunisia Premium', price: 75000, desc: 'Kurma segar pilihan, manis alami. Cocok untuk buka puasa.', imageUrl: 'https://placehold.co/150x150/067554/ffffff?text=Kurma' },
+        { id: 'p2', name: 'Peci Rajut Eksklusif', price: 35000, desc: 'Bahan nyaman, adem, dan jahitan rapi. Kualitas premium.', imageUrl: 'https://placehold.co/150x150/10b981/ffffff?text=Peci' },
+        { id: 'p3', name: 'Sajadah Turki Tebal', price: 120000, desc: 'Sajadah super tebal, nyaman untuk sujud. Motif Islami.', imageUrl: 'https://placehold.co/150x150/34d399/000000?text=Sajadah' },
+        { id: 'p4', name: 'Tasbih Kayu Cendana', price: 50000, desc: 'Tasbih 33 butir dari kayu cendana asli, wangi dan elegan.', imageUrl: 'https://placehold.co/150x150/6ee7b7/000000?text=Tasbih' },
+    ];
+
+    // State untuk stok realtime (simulasi)
+    let productStocks = {
+        'p1': 50,
+        'p2': 30,
+        'p3': 15,
+        'p4': 40,
+    };
+    
+    // State untuk QR Code Toko (simulasi)
+    let shopQrCodeUrl = "https://placehold.co/200x200/000000/ffffff?text=QR+Code+Toko";
+
+
+    // --- UTILITIES ---
+
+    // Format mata uang Rupiah
+    const formatRupiah = (number) => {
+        return new Intl.NumberFormat('id-ID', {
+            style: 'currency',
+            currency: 'IDR',
+            minimumFractionDigits: 0
+        }).format(number);
+    };
+
+    // Fungsi untuk mengubah tampilan (View)
+    const changeView = (newView) => {
+        if (newView === 'AdminPanel' && !isAdminLoggedIn) {
+            promptAdminLogin();
+            return; // Stop changing view until logged in
+        }
+
+        currentView = newView;
+        render();
+        updateNav(newView);
+        document.getElementById('content').scrollTop = 0; // Scroll ke atas saat ganti view
+    };
+    
+    // Fungsi untuk memicu login Admin
+    const promptAdminLogin = () => {
+        showModal(`
+            <div class="bg-white p-6 rounded-xl shadow-2xl max-w-xs w-full text-center border-t-4 border-red-500 space-y-4">
+                <i data-lucide="lock" class="w-8 h-8 text-red-500 mx-auto"></i>
+                <p class="text-lg font-bold text-gray-800">Akses Terbatas</p>
+                <p class="text-sm text-gray-600">Masukkan Kunci Akses Admin:</p>
+                <input type="password" id="admin-key-input" placeholder="Masukkan kunci..." class="w-full p-2 border rounded-lg text-sm focus:ring-primary-green focus:border-primary-green">
+                <p class="text-xs text-gray-400">Kunci default: toko123</p>
+                <button onclick="loginAdmin()" class="w-full bg-red-500 hover:bg-red-600 text-white font-bold py-2 rounded-lg transition duration-200">
+                    Masuk
+                </button>
+                <button onclick="closeModal(); changeView('Home');" class="mt-2 w-full text-sm text-gray-500 hover:underline">
+                    Batal
+                </button>
+            </div>
+        `);
+    };
+
+    // Fungsi untuk memverifikasi login Admin
+    const loginAdmin = () => {
+        const inputEl = document.getElementById('admin-key-input');
+        const inputKey = inputEl.value;
+        if (inputKey === ADMIN_KEY) {
+            isAdminLoggedIn = true;
+            closeModal();
+            changeView('AdminPanel');
+        } else {
+            inputEl.value = '';
+            inputEl.placeholder = 'Kunci salah! Coba lagi...';
+            inputEl.classList.add('border-red-500');
+        }
+    };
+
+    // Update tampilan navigasi
+        const updateNav = (activeView) => {
+        document.querySelectorAll('.nav-item').forEach(btn => {
+            btn.classList.remove('text-primary-green', 'font-semibold');
+            btn.classList.add('text-gray-500');
+        });
+
+        const activeBtn = document.querySelector(`[onclick="changeView('${activeView}')"]`);
+        if (activeBtn) {
+            activeBtn.classList.remove('text-gray-500');
+            activeBtn.classList.add('text-primary-green', 'font-semibold');
+        }
+        // Pastikan ikon diulang render untuk warna yang benar
+        lucide.createIcons();
+    };
+
+    // Update jumlah item di keranjang
+    const updateCartCount = () => {
+        const totalItems = Object.values(cart).reduce((sum, qty) => sum + qty, 0);
+        const cartCountEl = document.getElementById('cart-count');
+        cartCountEl.textContent = totalItems;
+
+        if (totalItems > 0) {
+            cartCountEl.classList.remove('hidden');
+        } else {
+            cartCountEl.classList.add('hidden');
+        }
+    };
+
+    // Tampilkan modal pesan/zoom
+    const showModal = (contentHTML) => {
+        const modalContainer = document.getElementById('modal-container');
+        modalContainer.innerHTML = contentHTML;
+        modalContainer.classList.remove('hidden');
+        lucide.createIcons();
+    };
+
+    // Tutup modal
+    const closeModal = () => {
+        document.getElementById('modal-container').classList.add('hidden');
+        document.getElementById('modal-container').innerHTML = '';
+        render(); // Render ulang jika ada perubahan data (misal: stok di Admin Panel)
+    };
+
+    // --- LOGIKA PEMBELIAN ONLINE (CART) ---
+
+    const addToCart = (productId) => {
+        const currentStock = productStocks[productId] || 0;
+        const currentCartQty = cart[productId] || 0;
+
+        if (currentCartQty < currentStock) {
+            cart[productId] = currentCartQty + 1;
+            updateCartCount();
+            render(); 
+            // Tampilkan notifikasi kecil
+            showModal(`
+                <div class="bg-white p-4 rounded-xl shadow-lg animate-bounce-in max-w-xs text-center">
+                    <p class="text-primary-green font-semibold">Berhasil!</p>
+                    <p class="text-sm">Produk ditambahkan ke keranjang.</p>
+                    <button onclick="closeModal()" class="mt-2 text-xs text-gray-500 underline">Tutup</button>
+                </div>
+            `);
+            setTimeout(() => closeModal(), 1500);
+        } else {
+             showModal(`
+                <div class="bg-white p-4 rounded-xl shadow-lg animate-bounce-in max-w-xs text-center">
+                    <p class="text-red-500 font-semibold">Gagal!</p>
+                    <p class="text-sm">Stok produk habis atau tidak mencukupi.</p>
+                    <button onclick="closeModal()" class="mt-2 text-xs text-gray-500 underline">Tutup</button>
+                </div>
+            `);
+        }
+    };
+
+    const calculateCartTotal = () => {
+        let total = 0;
+        for (const id in cart) {
+            const product = products.find(p => p.id === id);
+            if (product) {
+                total += product.price * cart[id];
+            }
+        }
+        return total;
+    };
+
+    // --- VIEW RENDERING FUNCTIONS ---
+
+    // 1. Home View (Stok Realtime)
+    const renderHome = () => {
+        // Ambil produk terbaru yang diposting untuk kotak status utama
+        const newestProduct = products[0]; 
+        const newestStock = productStocks[newestProduct.id] || 0;
+        const stockClass = newestStock > 10 ? 'text-primary-green' : 'text-red-500';
+
+        // Ambil 3 postingan teratas
+        const postsToShow = products.slice(0, 3);
+
+
+        return `
+            <div class="space-y-4">
+                <h2 class="text-2xl font-bold text-primary-green mb-4">Selamat Datang di Toko Barakah</h2>
+                <p class="text-sm text-gray-600 mb-6">Semoga hari Anda penuh berkah. Lihat postingan terbaru dari kami di bawah ini!</p>
+
+                <!-- Status Stok Utama (Real-time update) -->
+                <div class="bg-white p-4 rounded-xl shadow-md border-b-4 border-secondary-green text-center">
+                    <p class="text-sm text-gray-700">Jumlah Stok untuk Postingan Utama (${newestProduct.name}):</p>
+                    <p class="text-4xl font-extrabold mt-1 ${stockClass}">${newestStock}</p>
+                    <p class="text-xs text-gray-500">Update Real-time saat ada Pembelian.</p>
+                </div>
+
+
+                <!-- Daftar Postingan Produk -->
+                ${postsToShow.map((p, i) => {
+                    const currentStock = productStocks[p.id] || 0;
+                    const postStockClass = currentStock > 10 ? 'text-primary-green' : 'text-red-500';
+                    return `
+                    <div class="bg-white p-4 rounded-xl shadow-md border-t-4 border-secondary-green">
+                        <div class="flex items-center mb-3">
+                            <i data-lucide="user-circle-2" class="w-8 h-8 text-primary-green mr-3"></i>
+                            <div>
+                                <p class="font-bold text-gray-800">Admin Toko Barakah</p>
+                                <p class="text-xs text-gray-500">Produk #${products.length - i} | ${i === 0 ? 'TERBARU' : 'Lama'}</p>
+                            </div>
+                        </div>
+                        <h3 class="text-lg font-semibold text-gray-800 mb-2">${p.name}</h3>
+                        <img src="${p.imageUrl.replace('150x150', '400x200')}" alt="Postingan ${p.name}" class="w-full h-auto rounded-lg mb-3">
+                        <p class="text-sm text-gray-700 line-clamp-3">${p.desc}</p>
+                        <div class="mt-3 flex justify-between items-center">
+                            <p class="text-sm font-bold text-secondary-green">${formatRupiah(p.price)}</p>
+                            <p class="text-sm font-bold ${postStockClass}">
+                                Stok: ${currentStock}
+                            </p>
+                        </div>
+                    </div>
+                `;
+                }).join('')}
+            </div>
+        `;
+    };
+
+    // 2. Datang Langsung View 
+    const renderDatangLangsung = () => {
+        let content = `
+            <div class="text-center space-y-6">
+                <h2 class="text-2xl font-bold text-primary-green">Datang Langsung</h2>
+                <p class="text-gray-600">Silakan Pindai QR Produk di toko untuk mengetahui total belanja Anda.</p>
+                
+                <div id="qr-scan-area" class="bg-white p-8 rounded-xl shadow-lg border-2 border-dashed border-primary-green mx-auto max-w-xs">
+                    <i data-lucide="scan" class="w-16 h-16 text-primary-green mx-auto mb-3"></i>
+                    <p class="text-sm text-gray-500">Arahkan kamera ke QR Produk</p>
+                    <button id="scan-button" onclick="simulateScan()" class="mt-4 w-full bg-secondary-green hover:bg-primary-green text-white font-bold py-2 px-4 rounded-lg transition duration-200 shadow-md">
+                        Simulasi Scan QR Produk
+                    </button>
+                </div>
+                
+                <div id="payment-details" class="hidden space-y-4">
+                    <!-- Detail pembayaran akan muncul di sini setelah simulasi scan -->
+                </div>
+
+                <div id="success-message" class="hidden bg-green-100 border-l-4 border-green-500 text-green-700 p-4 rounded-md">
+                    <p class="font-bold">Pembayaran Anda Berhasil!</p>
+                    <p id="final-total"></p>
+                </div>
+            </div>
+        `;
+
+        // Setelah merender, pastikan ikon Lucide diinisialisasi
+        setTimeout(() => lucide.createIcons(), 0);
+        return content;
+    };
+
+    // Simulasi proses Scan QR Produk
+    const simulateScan = () => {
+        const total = 185000 + Math.floor(Math.random() * 5) * 10000; // Total acak
+        
+        document.getElementById('qr-scan-area').classList.add('hidden');
+        
+        const paymentDetailsEl = document.getElementById('payment-details');
+        paymentDetailsEl.innerHTML = `
+            <div class="bg-white p-6 rounded-xl shadow-lg border border-primary-green">
+                <h3 class="text-xl font-bold text-red-600 mb-4">Total Pembayaran Anda</h3>
+                <p class="text-4xl font-extrabold text-primary-green mb-6">${formatRupiah(total)}</p>
+                
+                <p class="text-sm text-gray-600 mb-2">Silakan bayar dengan memindai QR Code Toko di bawah ini:</p>
+                <img src="${shopQrCodeUrl}" alt="QR Pembayaran Toko" class="mx-auto border-4 border-secondary-green p-1 rounded-lg">
+                <p class="text-xs text-gray-500 mt-2">Gunakan aplikasi pembayaran Anda (Dana/Gopay/OVO).</p>
+
+                <button onclick="simulatePaymentSuccess(${total})" class="mt-6 w-full bg-primary-green hover:bg-green-800 text-white font-bold py-3 px-4 rounded-lg transition duration-200 shadow-lg">
+                    Pembayaran telah dilakukan
+                </button>
+            </div>
+        `;
+        paymentDetailsEl.classList.remove('hidden');
+    };
+
+    // Simulasi pembayaran berhasil (mengurangi stok)
+        const simulatePaymentSuccess = (total) => {
+        // Simulasi pembelian acak (misal, 1 produk Kurma - p1)
+        const purchasedId = 'p1';
+        const purchasedQty = 1;
+
+        if (productStocks[purchasedId] && productStocks[purchasedId] >= purchasedQty) {
+            productStocks[purchasedId] -= purchasedQty;
+        }
+        
+        document.getElementById('payment-details').classList.add('hidden');
+        
+        const successEl = document.getElementById('success-message');
+        document.getElementById('final-total').textContent = `Dengan total ${formatRupiah(total)}.`;
+        successEl.classList.remove('hidden');
+
+        // Reset setelah 5 detik dan render ulang untuk update stok di Home
+        setTimeout(() => {
+            successEl.classList.add('hidden');
+            document.getElementById('qr-scan-area').classList.remove('hidden');
+            changeView('Home'); // Kembali ke Home untuk melihat stok yang berkurang
+        }, 5000);
+    };
+
+    // 3. Pembelian Online View
+    const renderPembelianOnline = () => {
+        if (currentView === 'Checkout') {
+            return renderCheckout();
+        }
+
+        const productListHTML = products.map(p => {
+            const currentStock = productStocks[p.id] || 0;
+            const stockClass = currentStock > 5 ? 'text-gray-600' : 'text-red-500 font-bold';
+            const disableButton = currentStock === 0 ? 'disabled' : '';
+
+            return `
+                <div class="bg-white rounded-xl shadow-lg overflow-hidden flex flex-col sm:flex-row mb-4 border border-gray-100">
+                    <div class="relative w-full sm:w-2/5 flex-shrink-0">
+                        <img src="${p.imageUrl}" alt="${p.name}" class="w-full h-48 object-cover cursor-pointer" onclick="openZoom('${p.imageUrl}', '${p.name}')">
+                        <button onclick="openZoom('${p.imageUrl}', '${p.name}')" class="absolute top-2 right-2 p-1 bg-black bg-opacity-30 rounded-full text-white hover:bg-opacity-50 transition">
+                            <i data-lucide="zoom-in" class="w-4 h-4"></i>
+                        </button>
+                    </div>
+                    
+                    <div class="p-4 flex flex-col justify-between w-full">
+                        <div>
+                            <h3 class="text-lg font-bold text-gray-800">${p.name}</h3>
+                            <p class="text-sm text-secondary-green font-extrabold mb-1">${formatRupiah(p.price)}</p>
+                            <p class="text-xs mb-2 ${stockClass}">Stok: ${currentStock}</p>
+                            <p class="text-xs text-gray-600 line-clamp-2">${p.desc}</p>
+                        </div>
+
+                        <div class="flex justify-between items-center mt-3">
+                            <span class="text-sm font-semibold text-primary-green">
+                                ${cart[p.id] ? `Di Keranjang: ${cart[p.id]}` : '0'}
+                            </span>
+                            <button ${disableButton} onclick="addToCart('${p.id}')" 
+                                    class="flex items-center text-white font-bold py-2 px-3 rounded-full transition duration-200 shadow-md ${disableButton ? 'bg-gray-400 cursor-not-allowed' : 'bg-primary-green hover:bg-green-700'}">
+                                <i data-lucide="plus" class="w-4 h-4 mr-1"></i> Tambah
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }).join('');
+
+        const totalItems = Object.values(cart).reduce((sum, qty) => sum + qty, 0);
+
+        return `
+            <div id="online-shopping-mode" class="space-y-4">
+                <h2 class="text-2xl font-bold text-primary-green">Pembelian Online</h2>
+                <p class="text-gray-600">Pilih produk terbaik kami. Klik gambar untuk Zoom!</p>
+                
+                ${productListHTML}
+
+                <div class="fixed bottom-16 left-1/2 -translate-x-1/2 max-w-sm w-full p-4">
+                    <button ${totalItems === 0 ? 'disabled' : ''} onclick="changeView('Checkout')" 
+                            class="w-full py-3 rounded-xl font-bold text-white transition duration-300 shadow-xl
+                            ${totalItems > 0 ? 'bg-red-500 hover:bg-red-600' : 'bg-gray-400 cursor-not-allowed'}">
+                        ${totalItems > 0 ? `Checkout (${totalItems} Item) - ${formatRupiah(calculateCartTotal())}` : 'Keranjang Kosong'}
+                    </button>
+                </div>
+            </div>
+        `;
+    };
+
+    // 3.1 Checkout View (Sub-view Pembelian Online)
+    const renderCheckout = () => {
+        const total = calculateCartTotal();
+        const items = Object.keys(cart).map(id => {
+            const product = products.find(p => p.id === id);
+            if (product && cart[id] > 0) {
+                return { ...product, quantity: cart[id], subtotal: product.price * cart[id] };
+            }
+            return null;
+        }).filter(item => item !== null);
+
+        const receiptHTML = items.map(item => `
+            <div class="flex justify-between text-sm py-2 border-b border-gray-100">
+                <span class="text-gray-700">${item.quantity} x ${item.name}</span>
+                <span class="font-semibold text-gray-800">${formatRupiah(item.subtotal)}</span>
+            </div>
+        `).join('');
+
+        return `
+            <div id="checkout-mode" class="space-y-6">
+                <h2 class="text-2xl font-bold text-primary-green">Nota Penjualan & Pembayaran</h2>
+                
+                <!-- Nota Penjualan -->
+                <div class="bg-white p-6 rounded-xl shadow-lg border border-primary-green">
+                    <p class="text-sm font-bold text-center mb-4">TOKO BARAKAH - NOTA</p>
+                    ${receiptHTML}
+
+                    <div class="flex justify-between items-center mt-4 pt-4 border-t-2 border-primary-green">
+                        <span class="text-xl font-bold text-gray-800">TOTAL BELANJA</span>
+                        <span class="text-xl font-extrabold text-red-600">${formatRupiah(total)}</span>
+                    </div>
+                </div>
+
+                <!-- Pembayaran QR -->
+                <div class="bg-light-bg p-6 rounded-xl shadow-lg text-center border">
+                    <p class="text-md text-gray-700 mb-4">Lakukan pembayaran dengan memindai QR Code di bawah ini:</p>
+                    <img src="${shopQrCodeUrl}" alt="QR Pembayaran Toko" class="mx-auto border-4 border-secondary-green p-1 rounded-lg">
+                    
+                    <button onclick="simulateOnlinePaymentSuccess(${total})" class="mt-6 w-full bg-primary-green hover:bg-green-800 text-white font-bold py-3 px-4 rounded-lg transition duration-200 shadow-lg">
+                        Konfirmasi Pembayaran Lunas
+                    </button>
+                    
+                    <button onclick="changeView('PembelianOnline');" class="mt-3 w-full text-sm text-gray-500 hover:underline">
+                        Kembali ke Daftar Produk
+                    </button>
+                </div>
+            </div>
+        `;
+    };
+
+    // Simulasi pembayaran online berhasil (mengurangi stok)
+    const simulateOnlinePaymentSuccess = (total) => {
+        // Kurangi stok berdasarkan isi keranjang
+        for (const id in cart) {
+            if (productStocks[id] && productStocks[id] >= cart[id]) {
+                productStocks[id] -= cart[id];
+            }
+        }
+
+        // Reset cart
+        cart = {};
+        updateCartCount();
+
+        showModal(`
+            <div class="bg-white p-6 rounded-xl shadow-2xl max-w-xs text-center border-t-4 border-green-500">
+                <i data-lucide="check-circle" class="w-10 h-10 text-green-500 mx-auto mb-3"></i>
+                <p class="text-lg font-bold text-primary-green">Pembayaran Berhasil!</p>
+                <p class="text-sm text-gray-700">Terima kasih atas pembelian Anda.</p>
+                <p class="text-xl font-extrabold mt-2 text-red-600">${formatRupiah(total)}</p>
+                <button onclick="closeModal(); changeView('Home');" class="mt-4 w-full bg-secondary-green hover:bg-primary-green text-white font-bold py-2 rounded-lg">
+                    Kembali ke Home
+                </button>
+            </div>
+        `);
+    };
+
+    // 4. Admin Panel View 
+    const renderAdminPanel = () => {
+        const stockListHTML = products.map(p => {
+            const stock = productStocks[p.id] || 0;
+            const stockClass = stock > 10 ? 'text-primary-green' : 'text-red-500';
+            return `
+                <li class="flex justify-between items-center py-2 border-b border-gray-100">
+                    <span class="text-gray-700">${p.name}</span>
+                    <span class="font-bold ${stockClass}">${stock} Unit</span>
+                </li>
+            `;
+        }).join('');
+
+        return `
+            <div class="space-y-6">
+                <h2 class="text-2xl font-bold text-red-500 flex items-center">
+                    <i data-lucide="shield-check" class="w-7 h-7 mr-2"></i> Admin Panel
+                </h2>
+                <p class="text-sm text-gray-600">Anda berhasil masuk. Kelola data toko di sini.</p>
+
+                <!-- 1. Pantau Jumlah Produk -->
+                <div class="bg-white p-4 rounded-xl shadow-md border-l-4 border-secondary-green">
+                    <h3 class="text-lg font-semibold mb-3 flex items-center text-primary-green">
+                        <i data-lucide="package" class="w-5 h-5 mr-2"></i> Status Stok Produk
+                    </h3>
+                    <ul class="divide-y divide-gray-200">
+                        ${stockListHTML}
+                    </ul>
+                    <button onclick="changeView('Home')" class="mt-4 text-xs text-secondary-green hover:underline">Lihat Pengurangan Stok Real-time di Home</button>
+                </div>
+
+                <!-- 2. Manajemen QR Code Toko -->
+                <div class="bg-white p-4 rounded-xl shadow-md border-l-4 border-secondary-green">
+                    <h3 class="text-lg font-semibold mb-3 flex items-center text-primary-green">
+                        <i data-lucide="qr-code" class="w-5 h-5 mr-2"></i> QR Code Pembayaran Toko
+                    </h3>
+                    <img id="admin-qr-code" src="${shopQrCodeUrl}" alt="QR Code Toko" class="mx-auto border-4 border-gray-200 p-1 rounded-lg w-32 h-32 mb-3">
+                    <input type="text" id="qr-input" placeholder="URL Gambar QR Baru" class="w-full p-2 border rounded-lg text-sm mb-3">
+                    <button onclick="updateShopQrCode()" class="w-full bg-red-500 hover:bg-red-600 text-white font-bold py-2 rounded-lg">
+                        Update QR Code
+                    </button>
+                </div>
+
+                <!-- 3. Postingan Produk Baru -->
+                <div class="bg-white p-4 rounded-xl shadow-md border-l-4 border-secondary-green">
+                    <h3 class="text-lg font-semibold mb-3 flex items-center text-primary-green">
+                        <i data-lucide="file-text" class="w-5 h-5 mr-2"></i> Isi Postingan Produk Baru
+                    </h3>
+                    <input type="text" id="post-name" placeholder="Nama Produk (Wajib)" class="w-full p-2 border rounded-lg text-sm mb-2">
+                    <input type="number" id="post-price" placeholder="Harga (IDR, cth: 75000) (Wajib)" class="w-full p-2 border rounded-lg text-sm mb-2">
+                    <input type="number" id="post-stock" placeholder="Stok Awal (Wajib)" class="w-full p-2 border rounded-lg text-sm mb-2">
+                    <textarea id="post-desc" placeholder="Deskripsi Singkat" rows="2" class="w-full p-2 border rounded-lg text-sm resize-none mb-2"></textarea>
+                    <input type="text" id="post-image" placeholder="URL Gambar (Opsional)" class="w-full p-2 border rounded-lg text-sm mb-3">
+                    
+                    <button onclick="addNewProduct()" class="w-full bg-secondary-green hover:bg-primary-green text-white font-bold py-2 rounded-lg mt-2">
+                        Posting Produk Baru
+                    </button>
+                </div>
+            </div>
+        `;
+    };
+
+    // Logika Admin: Update QR Code
+    const updateShopQrCode = () => {
+        const input = document.getElementById('qr-input').value;
+        if (input.trim() !== '') {
+            shopQrCodeUrl = input.trim();
+            // Tampilkan notifikasi
+            showModal(`
+                <div class="bg-white p-4 rounded-xl shadow-lg max-w-xs text-center border-t-4 border-green-500">
+                    <p class="text-primary-green font-semibold">QR Code Berhasil Diperbarui!</p>
+                    <p class="text-sm">URL baru telah tersimpan.</p>
+                    <button onclick="closeModal()" class="mt-2 text-xs text-gray-500 underline">Tutup</button>
+                </div>
+            `);
+        } else {
+             showModal(`
+                <div class="bg-white p-4 rounded-xl shadow-lg max-w-xs text-center border-t-4 border-red-500">
+                    <p class="text-red-500 font-semibold">Gagal Update!</p>
+                    <p class="text-sm">Input URL tidak boleh kosong.</p>
+                    <button onclick="closeModal()" class="mt-2 text-xs text-gray-500 underline">Tutup</button>
+                </div>
+            `);
+        }
+    };
+    
+    // Logika Admin: Menambahkan Produk Baru
+    const addNewProduct = () => {
+        const name = document.getElementById('post-name').value.trim();
+        const price = parseInt(document.getElementById('post-price').value, 10);
+        const stock = parseInt(document.getElementById('post-stock').value, 10);
+        const desc = document.getElementById('post-desc').value.trim() || 'Deskripsi belum tersedia.';
+        const imageUrl = document.getElementById('post-image').value.trim() || 'https://placehold.co/150x150/059669/ffffff?text=Produk+Baru';
+
+        if (!name || isNaN(price) || price <= 0 || isNaN(stock) || stock < 0) {
+            showModal(`
+                <div class="bg-white p-4 rounded-xl shadow-lg max-w-xs text-center border-t-4 border-red-500">
+                    <p class="text-red-500 font-semibold">Gagal Posting!</p>
+                    <p class="text-sm">Nama, Harga (angka positif), dan Stok Awal (angka non-negatif) wajib diisi dengan benar.</p>
+                    <button onclick="closeModal()" class="mt-2 text-xs text-gray-500 underline">Tutup</button>
+                </div>
+            `);
+            return;
+        }
+
+        // Buat ID baru (simulasi unik)
+        const newId = 'p' + (products.length + 1).toString() + Date.now();
+
+        const newProduct = { id: newId, name, price, desc, imageUrl };
+        products.unshift(newProduct); // Tambahkan di awal agar menjadi produk terbaru
+        productStocks[newId] = stock;
+
+        // Kosongkan form
+        document.getElementById('post-name').value = '';
+        document.getElementById('post-price').value = '';
+        document.getElementById('post-stock').value = '';
+        document.getElementById('post-desc').value = '';
+        document.getElementById('post-image').value = '';
+
+        // Tampilkan notifikasi dan update view
+        showModal(`
+            <div class="bg-white p-4 rounded-xl shadow-lg max-w-xs text-center border-t-4 border-green-500">
+                <p class="text-primary-green font-semibold">Produk Berhasil Diposting!</p>
+                <p class="text-sm">"${name}" kini tersedia dengan stok ${stock} unit.</p>
+                <button onclick="closeModal(); changeView('Home');" class="mt-2 text-xs text-gray-500 underline">Lihat di Home</button>
+            </div>
+        `);
+    };
+
+
+    // --- ZOOM FEATURE ---
+    const openZoom = (imageUrl, productName) => {
+        const contentHTML = `
+            <div class="bg-white p-4 rounded-xl shadow-lg max-w-xs w-full">
+                <div class="flex justify-between items-center mb-3">
+                    <h4 class="font-semibold text-gray-800">${productName}</h4>
+                    <button onclick="closeModal()" class="p-1 rounded-full bg-gray-100 hover:bg-gray-200">
+                        <i data-lucide="x" class="w-5 h-5 text-gray-600"></i>
+                    </button>
+                </div>
+                <img src="${imageUrl.replace('150x150', '350x350')}" alt="Zoomed ${productName}" class="w-full h-auto rounded-lg border border-gray-200">
+            </div>
+        `;
+        showModal(contentHTML);
+    };
+
+
+    // --- MAIN RENDER FUNCTION ---
+    const render = () => {
+        const contentEl = document.getElementById('content');
+        
+        switch (currentView) {
+            case 'Home':
+                contentEl.innerHTML = renderHome();
+                break;
+            case 'DatangLangsung':
+                contentEl.innerHTML = renderDatangLangsung();
+                break;
+            case 'PembelianOnline':
+                contentEl.innerHTML = renderPembelianOnline();
+                break;
+            case 'Checkout':
+                contentEl.innerHTML = renderCheckout();
+                break;
+            case 'AdminPanel':
+                contentEl.innerHTML = renderAdminPanel();
+                break;
+            default:
+                contentEl.innerHTML = renderHome();
+        }
+        
+        // Pastikan semua ikon di-inisialisasi setelah DOM diperbarui
+        lucide.createIcons();
+    };
+
+    // Initialize the app
+    window.onload = () => {
+        // Set view ke Home saat pertama kali load
+        changeView('Home');
+        updateCartCount();
+        lucide.createIcons();
+    };
+</script>
+
+</body>
+</html>
